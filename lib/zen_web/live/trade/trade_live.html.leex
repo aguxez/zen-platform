@@ -1,0 +1,35 @@
+<hr>
+<div>
+  <%= if @live_action == :new do %>
+    <h2>Create Your Trade</h2>
+
+    <%= form_for @trade_changeset, Routes.trade_path(@socket, :new), ["phx-submit": "create_trade"], fn f -> %>
+      <div class="mb-3">
+        <%= label f, "Token Address", class: "form-label" %>
+        <%= text_input f, :starter_token_address, class: "form-control", required: true %>
+        <%= error_tag f, :starter_token_address %>
+      </div>
+
+      <%= hidden_input f, :number_of_cells, value: 12 %>
+      <%= hidden_input f, :starter, value: @signer %>
+
+      <%= submit "Submit Creation", class: "btn btn-primary" %>
+    <% end %>
+  <% end %>
+
+  <%= if @live_action == :confirm do %>
+    <%# Since this is the same view we should have the address of the person on the assigns %>
+    <%= form_for @trade_changeset, Routes.show_path(@socket, :show, @trade_id), [], fn f -> %>
+      <div class="mb-3">
+        <%= label f, "Token Address", class: "form-label" %>
+        <%= text_input f, :receiver_token_address, id: "receiver-token-address", class: "form-control", required: true %>
+        <%= error_tag f, :receiver_token_address %>
+      </div>
+
+      <%= hidden_input f, :receiver, value: @signer %>
+      <%= hidden_input f, :trade_id, value: @trade_id %>
+
+      <%= submit "Confirm Trade", id: "confirm-form-button", "phx-hook": "LoadContractInstance", class: "btn btn-primary" %>
+    <% end %>
+  <% end %>
+</div>
