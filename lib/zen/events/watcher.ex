@@ -12,7 +12,7 @@ defmodule Zen.Events.Watcher do
   alias Ecto.Multi
   alias Zen.HTTP.Graph
   alias Zen.Repo
-  alias Zen.Schema.{Trade, Event.Ack}
+  alias Zen.Schema.{Trade, Trade.Asset, Event.Ack}
 
   @watchable_events [
     "tradeStarteds",
@@ -49,7 +49,8 @@ defmodule Zen.Events.Watcher do
         id
         blockNumber
         tradeId
-        owner
+        tokenId
+        cell
       }
     }
     """
@@ -71,7 +72,6 @@ defmodule Zen.Events.Watcher do
     Ack
     |> Repo.get_by(name: event_name)
     |> Ack.changeset(%{last_block: block_number})
-    |> IO.inspect()
     |> Repo.update()
 
     {:noreply, state}
@@ -116,15 +116,21 @@ defmodule Zen.Events.Watcher do
 
   defp take_events_by_name({_, []}), do: :ignore
 
-  defp take_events_by_name({"tokenAddedToTrades", _events}) do
-    # TODO: Implement
+  defp take_events_by_name({"tokenAddedToTrades" = event_name, events}) do
+    Logger.info("Handling #{length(events)} token adds")
+
+    Zen.Supervisors.EventsSupervisor
+    |> Task.Supervisor.async_stream(events, &add_token_to_trade/1, max_concurrency: 2)
+    |> Stream.run()
+
+    ack_event(event_name, events)
   end
 
   defp take_events_by_name({"tradeStarteds" = event_name, events}) do
     Logger.info("Handling #{length(events)} trade starts")
 
     Zen.Supervisors.EventsSupervisor
-    |> Task.Supervisor.async_stream(events, &confirm_trade/1, max_concurrency: 4)
+    |> Task.Supervisor.async_stream(events, &confirm_trade/1, max_concurrency: 2)
     |> Stream.run()
 
     ack_event(event_name, events)
@@ -148,6 +154,23 @@ defmodule Zen.Events.Watcher do
       # Probably we received a bad trade ID
       Logger.warn("Received an invalid trade ID for #{event["tradeId"]}")
       :ignore
+  end
+
+  defp add_token_to_trade(event) do
+    IO.inspect(event)
+    Logger.info("Trying to add token to #{event["tradeId"]}")
+
+    asset_params = %{
+      is_locked: true,
+      trade_id: event["tradeId"],
+      token_id: event["tokenId"]
+    }
+
+    with nil <- Repo.get_by(Asset, trade_id: event["tradeId"], token_id: event["tokenId"]),
+         changeset <- Asset.changeset(%Asset{}, asset_params),
+         {:ok, _asset} <- Repo.insert(changeset) do
+      # TODO: Broadcast
+    end
   end
 
   defp ack_event(event_name, [last_event | _]) do

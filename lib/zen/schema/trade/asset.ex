@@ -9,6 +9,8 @@ defmodule Zen.Schema.Trade.Asset do
   @foreign_key_type Ecto.ShortUUID
   schema "trade_assets" do
     field :is_locked, :boolean, default: false
+    field :metadata_uri, :string
+    field :token_id, :integer
 
     belongs_to(:trade, Zen.Schema.Trade)
 
@@ -18,7 +20,8 @@ defmodule Zen.Schema.Trade.Asset do
   @doc false
   def changeset(asset, attrs) do
     asset
-    |> cast(attrs, [:is_locked])
-    |> validate_required([:is_locked])
+    |> cast(attrs, [:trade_id, :is_locked, :metadata_uri, :token_id])
+    |> validate_required([:trade_id, :is_locked, :token_id])
+    |> foreign_key_constraint(:trade_id)
   end
 end
